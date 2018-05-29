@@ -3,14 +3,15 @@
 #### May 28, 2018
 
 # Intro
-MidiWrite makes turning a chord progression into a MIDI file a super simple process while lessening the time required needed to create a MIDI file based on a progression. It is intended for guitarists who wish to quickly create a MIDI file from chords; however, plans to make MidiWrite more flexible are in the works.
+MidiWrite makes turning a chord progression into a MIDI file a simple process while lessening the time required needed to create a MIDI file based on a progression. It is intended for guitarists who wish to quickly create a MIDI file from chords; however, plans to make MidiWrite more flexible are in the works.
 
 MidiWrite takes in a series of chords and creates a MIDI file in the directory MidiWrite was ran. It accepts chords of the following types:
 
-* [chord*] : 5 string root
-* [chord**] : 6 string root
-* [eadgbe] : fret notation
-
+|  command  | type of chord |
+|:---------:|:-------------:|
+|  [chord*] | 5 string root |
+| [chord**] | 6 string root |
+|  [eadgbe] | fret notation |
 
 # Custom Files
 MidiWrite can be pointed to a text file containing definitions of user-defined chords.
@@ -36,7 +37,26 @@ A sample markup file is shown below.
         </commands>
     <end [title]>
 
+where commands is a comma-separated list of chords *(see my_prog.mwm).*
+
+## Command flags
+
+Each command can have optional flags denoting additional parameters:
+
+| flag |           command           |
+|:----:|:---------------------------:|
+|  -a  |       arpeggiate chord      |
+|  -ar | arpeggiate chord in reverse |
+|  -w  |          whole note         |
+|  -h  |     half note (default)     |
+|  -q  |         quarter note        |
+|  -e  |         eighth note         |
+|  -s  |        sixteenth note       |
+|  -t  |          32nd note          |
+
 Note that the prefix is unnecessary if a time signature of 4/4, tempo of 120 and key signature of Cmaj are desired.
+
+## Building the file
 
 To build the MIDI file, run from the command line as follows:
 
@@ -52,27 +72,18 @@ However, removal of the type hinting should make MidiWrite compatible with all v
 
 # Planned Extensions
 The following functions are planned to be incorporated into the markup language:
+* Single note and scale support
+* Individual note markup shorthands
 
-<command>'s additional flags:
-* -a : arpeggiate chord
-* -w : whole note
-* -h : half note
-* -q : quarter note
-* -e : eighth note
-* -s : sixteenth note
-* -t : 32nd note
+    |       command      | type of chord |
+    |:------------------:|:-------------:|
+    | <ea[d_1 h d_2]gbe> |   hammer-on   |
+    | <ea[d_2 h d_1]gbe> |    pull-off   |
+    |  <eadgbe s eadgbe> | fret notation |
 
-Individual note markup shorthands are also possible additional functions:
-
-    <ea[d_1hd_2]gbe> for hammer-ons
-    <ea[d_2pd_1]gbe> for pull-offs
-    <eadgbe s eadgbe> for slides
-
-
-Future plans for MidiWrite
-==========================
+# Future plans for MidiWrite
 Future extensions are planned, including:
-    -note-length variability
-    -individual note writing
-    -scale writing
-    -musical idea abstraction (e.g. 7th chords in cycle of 5ths for the key of Abmaj)
+* single-note and scale writing
+* note-length variability
+* multiple track writing
+* musical idea abstraction (e.g. 7th chords in cycle of 5ths for the key of Abmaj)
