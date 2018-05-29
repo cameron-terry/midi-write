@@ -79,7 +79,7 @@ The following functions are planned to be incorporated into the markup language:
     |:------------------:|:-------------:|
     | <ea[d_1 h d_2]gbe> |   hammer-on   |
     | <ea[d_2 h d_1]gbe> |    pull-off   |
-    |  <eadgbe s eadgbe> | fret notation |
+    |  <[eadgbe] s [eadgbe]> | fret notation |
 
 # Future plans for MidiWrite
 Future extensions are planned, including:
