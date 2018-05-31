@@ -6,8 +6,8 @@
        </prefix>
        <custom_file="extras.txt">
        <commands>
-           ["-a Dbmaj7*", "F7%", "-e Bbm7**", "-e Am7**",
-            "-e Abm7**", "-e Db7*", "-q Gbmaj7**", "-q x2222x",
-            "-a Dbmaj7*", "Bbm7**", "-ar Ebm7*", "Ab13**"]
+           ["-a Dbmaj7**", "F7%", "-e Bbm7*", "-e Am7*",
+            "-e Abm7*", "-e Db7**", "-q Gbmaj7*", "-q x2222x",
+            "-a Dbmaj7**", "Bbm7*", "-ar Ebm7**", "Ab13*"]
        </commands>
 <end my_prog>

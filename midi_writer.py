@@ -1,7 +1,9 @@
 ##-------------------------------------------------------------------------------------------------------------------##
 # note: currenty musescore does not open these kinds of .midi files, unexpected eof
-# TODO: add support for single notes, scales and other abstract musical ideas
+# TODO: add support for single notes, scales and other musical ideas
 #       e.g. add support for cycle of fifths, hammer-ons / pull-offs, and more
+# TODO: add support for specifying chords by key
+#       e.g. key=C, I -> V -> iv -> IV = C -> G -> Fm -> A
 ##-------------------------------------------------------------------------------------------------------------------##
 # MidiWrite by Cameron Terry
 # May 28, 2018
@@ -45,38 +47,53 @@ class ToneHelper:
 
     # used for translating chords to notes
     chord_dict = {
-        "dim7**": [0, 9, 5, 18],
-        "dim7*": [0, 6, 10, 13, 19],
-        "aug7**": [0, 11, 16, 20],
-        "aug7*": [0, 8, 11, 16],
-        "dim**": [0, 6, 12, 15],
-        "dim*": [0, 6, 9, 15],
-        "aug**": [0, 4, 8, 12, 16],
-        "aug*": [0, 4, 8, 12],
-        "sus4**": [0, 7, 12, 17, 19, 24],
-        "sus4*": [0, 7, 12, 17, 19],
-        "sus2**": [0, 14, 19, 24],
-        "sus2*": [0, 7, 12, 14, 19],
-        "Mm7**": [0, 11, 15, 19],
-        "Mm7*": [0, 7, 11, 15, 21],
-        "m7b5**": [0, 10, 15, 18],
-        "m7b5*": [0, 6, 10, 15],
-        "maj6**": [0, 9, 16, 19],
-        "maj6*": [0, 7, 12, 16, 21],
-        "m6**": [0, 9, 15, 19],
-        "m6*": [0, 7, 12, 15, 21],
-        "maj7**": [0, 11, 16, 19],
-        "maj7*": [0, 7, 11, 16, 19],
-        "maj**": [0, 7, 12, 16, 19, 24],
-        "maj*": [0, 7, 12, 16, 19],
-        "m7**": [0, 10, 15, 19],
-        "m7*": [0, 7, 10, 15, 19],
-        "m**": [0, 7, 12, 15, 19, 24],
-        "m*": [0, 7, 12, 15, 19],
-        "7**": [0, 10, 15, 19],
-        "7*": [0, 7, 10, 16, 19],
-        "13**": [0, 10, 16, 21],
-        "13*": [0, 4, 10, 14, 21]
+        "dim7*":   [0, 9, 5, 18],
+        "dim7**":  [0, 6, 10, 13, 19],
+        "dim7***": [0, 6, 9, 15],
+        "aug7*":   [0, 11, 16, 20],
+        "aug7**":  [0, 8, 11, 16],
+        "aug7***": [0, 8, 10, 16],
+        "dim*":    [0, 6, 12, 15],
+        "dim**":   [0, 6, 9, 15],
+        "dim***":  [0, 3, 6, 12],
+        "aug*":    [0, 4, 8, 12, 16],
+        "aug**":   [0, 4, 8, 12],
+        "aug***":  [0, 4, 8, 12],
+        "sus4*":   [0, 7, 12, 17, 19, 24],
+        "sus4**":  [0, 7, 12, 17, 19],
+        "sus4***": [0, 7, 12, 17],
+        "sus2*":   [0, 14, 19, 24],
+        "sus2**":  [0, 7, 12, 14, 19],
+        "sus2***": [0, 7, 12, 14],
+        "mM7*":    [0, 11, 15, 19],
+        "mM7**":   [0, 7, 11, 15, 21],
+        "mM7***":  [0, 3, 7, 11],
+        "m7b5*":   [0, 10, 15, 18],
+        "m7b5**":  [0, 6, 10, 15],
+        "m7b5***": [0, 6, 11, 16],
+        "maj6*":   [0, 9, 16, 19],
+        "maj6**":  [0, 7, 12, 16, 21],
+        "maj6***": [0, 4, 9, 12],
+        "m6*":     [0, 9, 15, 19],
+        "m6**":    [0, 7, 12, 15, 21],
+        "m6***":   [0, 7, 9, 16],
+        "maj7*":   [0, 11, 16, 19],
+        "maj7**":  [0, 7, 11, 16, 19],
+        "maj7***": [0, 7, 11, 16],
+        "maj*":    [0, 7, 12, 16, 19, 24],
+        "maj**":   [0, 7, 12, 16, 19],
+        "maj***":  [0, 7, 12, 16],
+        "m7*":     [0, 10, 15, 19],
+        "m7**":    [0, 7, 10, 15, 19],
+        "m7***":   [0, 3, 10],
+        "m*":      [0, 7, 12, 15, 19, 24],
+        "m**":     [0, 7, 12, 15, 19],
+        "m***":    [0 - 12, 5 - 12, 8 - 12, 12 - 12],  # based off of 5th string root
+        "7*":      [0, 7, 10, 16, 19],
+        "7**":     [0, 7, 10, 16, 19],
+        "7***":    [0, 4, 10, 12],
+        "13*":     [0, 10, 16, 21],
+        "13**":    [0, 4, 10, 14, 21]
     }
 
     major_keys = {
@@ -447,7 +464,7 @@ class MidiWrite:
                 note_arr.append(delay + bytes(notes[len(notes)-1:len(notes)]) + note_off)
 
                 for j in range(len(notes) - 1, 0, -1):
-                    # delta times of simultaneous events are 0
+                    # turn off all at same time
                     note_arr.append(b'\x00' + bytes(notes[j-1:j]) + note_off)
             else:
                 num_notes = 4 if len(notes) >= 4 else len(notes)
@@ -477,45 +494,34 @@ class MidiWrite:
         arpeggiate = False
         arp_rev = False
         found_flags = False
-        search_chord = None
+        search_chord = chord
         note_type = 'd'
         
         if isinstance(chord, str):
-            # check for additional flags
-            if "-a" in chord or "-q" in chord or "-e" in chord:
+            # check for arpeggio flags
+            if "-a" in chord:
                 found_flags = True
+                arpeggiate = True
+                if "-ar" in chord:
+                    arp_rev = True
+                    search_chord = search_chord.replace('-ar', '')
+                else:
+                    search_chord = search_chord.replace('-a', '')
 
-            if found_flags:
-                if "-a" in chord:
-                    arpeggiate = True
-                    if "-ar" in chord:
-                        arp_rev = True
-                        search_chord = chord.replace('-ar', '')
+            time_flags = ['-w', '-h', '-q', '-e', '-s', '-t']
+
+            # check to make sure only one time flag is selected
+            for _ in range(2):
+                for flag in time_flags:
+                    if flag in search_chord and not found_flags:
+                        found_flags = True
+                        note_type = flag[1:]
+                        search_chord = search_chord.replace(flag, '')
+                        break
                     else:
-                        search_chord = chord.replace('-a', '')
+                        print("Error: time flag already selected: -" + note_type)
+                        exit(1)
 
-                # TODO: make sure user only selects one of these flags
-                if "-w" in chord:
-                    note_type = 'w'
-                    search_chord = chord.replace('-w', '')
-                elif "-h" in chord:
-                    note_type = 'h'
-                    search_chord = chord.replace('-q', '')
-                elif "-q" in chord:
-                    note_type = 'q'
-                    search_chord = chord.replace('-q', '')
-                elif "-e" in chord:
-                    note_type = 'e'
-                    search_chord = chord.replace('-e', '')
-                elif "-s" in chord:
-                    note_type = 's'
-                    search_chord = chord.replace('-s', '')
-                elif "-t" in chord:
-                    note_type = 't'
-                    search_chord = chord.replace('-t', '')
-            else:
-                search_chord = chord
-        
             # look for note and chord type in dictionaries
             for element in MidiWrite.note_map:
                 if element in search_chord:
@@ -523,7 +529,13 @@ class MidiWrite:
                     if '%' not in search_chord:
                         for c_shape in ToneHelper.chord_dict:
                             if c_shape in search_chord:
-                                return [base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type
+                                if "***" in search_chord:
+                                    return [24 + base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type
+                                elif "**" in search_chord:
+                                    return [12 + base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type
+                                elif "*" in search_chord:
+                                    return [base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type
+
                     else:
                         # look for chord in separate custom file
                         # custom file defines chords like so: <chord> : <[notes]> or <chord>:<fret notation>
@@ -546,33 +558,50 @@ class MidiWrite:
                                     return [base + int(i) for i in custom_dict[custom_c_shape]], arpeggiate, arp_rev, note_type
 
         # assume chord is in fret-notation
+        if 'x' not in search_chord and not any(char.isdigit() for char in search_chord):
+            print("Chord " + search_chord + " not found. Either chord has not been added or chord is incorrectly typed.")
+            return [0], False, False, note_type
+
         notes = []
+        octaves = [0, 0, 0, 0, 0, 0]
         if Misc.is_number(search_chord[0]):
+            shift = int(search_chord[0]) // 12
+            octaves[0] = shift
             notes.append(ToneHelper.guitar_map_standard_tuning["E"][int(search_chord[0]) % 12])  # octaves repeat
         else:
             if MidiWrite.debug and search_chord[0] != 'x':
                 print("Invalid character found, is ignored.")
         if Misc.is_number(search_chord[1]):
+            shift = int(search_chord[1]) // 12
+            octaves[1] = shift
             notes.append(ToneHelper.guitar_map_standard_tuning["A"][int(search_chord[1]) % 12])
         else:
             if MidiWrite.debug and search_chord[1] != 'x':
                 print("Invalid character found, is ignored.")
         if Misc.is_number(search_chord[2]):
+            shift = int(search_chord[2]) // 12
+            octaves[2] = shift
             notes.append(ToneHelper.guitar_map_standard_tuning["D"][int(search_chord[2]) % 12])
         else:
             if MidiWrite.debug and search_chord[2] != 'x':
                 print("Invalid character found, is ignored.")
         if Misc.is_number(search_chord[3]):
+            shift = int(search_chord[3]) // 12
+            octaves[3] = shift
             notes.append(ToneHelper.guitar_map_standard_tuning["G"][int(search_chord[3]) % 12])
         else:
             if MidiWrite.debug and search_chord[3] != 'x':
                 print("Invalid character found, is ignored.")
         if Misc.is_number(search_chord[4]):
+            shift = int(search_chord[4]) // 12
+            octaves[4] = shift
             notes.append(ToneHelper.guitar_map_standard_tuning["B"][int(search_chord[4]) % 12])
         else:
             if MidiWrite.debug and search_chord[4] != 'x':
                 print("Invalid character found, is ignored.")
         if Misc.is_number(search_chord[5]):
+            shift = int(search_chord[5]) // 12
+            octaves[5] = shift
             notes.append(ToneHelper.guitar_map_standard_tuning["E"][int(search_chord[5]) % 12])
         else:
             if MidiWrite.debug and search_chord[5] != 'x':
@@ -583,7 +612,7 @@ class MidiWrite:
                 notes[i] = notes[i][:2]
             for key, value in MidiWrite.note_map.items():
                 if key == notes[i]:
-                    notes[i] = MidiWrite.note_map[key]
+                    notes[i] = MidiWrite.note_map[key] + (12 * (1 + octaves[i]))
                     break
 
         return notes, arpeggiate, arp_rev, note_type
