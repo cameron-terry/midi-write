@@ -34,7 +34,7 @@ A sample markup file is shown below.
             <key_sig=[key_sig]> (not a necessary tag, default is Cmaj)
         </prefix>
         <custom_file=[custom_file]> (optional)
-        <mode=mode> (optional)
+        <mode=[mode]> (optional)
         <commands>
             [<command1> <command2> ... ]
         </commands>
