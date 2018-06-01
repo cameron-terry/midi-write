@@ -15,6 +15,7 @@
 import array
 import struct
 import math
+import re
 
 # class for helper functions
 class Misc:
@@ -29,12 +30,14 @@ class Misc:
         except ValueError:
             return False
 
+
 # class for dealing with tones and notes
 class ToneHelper:
     # used to map notes to sound frequencies
     note_map = {
-        "C": 60, "C#": 61, "Db": 61, "D": 62, "D#": 63, "Eb": 63, "E": 64, "F": 65, "F#": 66,
-        "Gb": 66, "G": 67, "G#": 68, "Ab": 68, "A": 69, "A#": 70, "Bb": 70, "B": 71
+        "C#": 37, "D#": 39, "F#": 42, "G#": 44, "A#": 46,
+        "Db": 37, "Eb": 39, "Gb": 42, "Ab": 44, "Bb": 46,
+        "D": 38, "C": 36,  "E": 40, "F": 41, "G": 43, "A": 45, "B": 47
     }
     # used for translating fret-based input
     guitar_map_standard_tuning = {
@@ -126,6 +129,14 @@ class ToneHelper:
         "B":  ["B", "C#", "D#", "E", "F#", "G#", "A#"]
     }
 
+    rn_major = {
+        "vii": 6, "vi": 5, "iii": 2, "ii": 1, "iv": 3, "v": 4, "i": 0
+    }
+
+    rn_minor = {
+        "vii": 6, "vi": 5, "iii": 2, "ii": 1, "iv": 3, "v": 4, "i": 0
+    }
+
     @staticmethod
     def get_key(k: str):
         '''
@@ -154,6 +165,7 @@ class ToneHelper:
 
 class MidiWrite:
     note_map = ToneHelper.note_map
+    key_sig = None
 
     # user defined file that contains additional chord mappings
     custom_file = None
@@ -167,7 +179,7 @@ class MidiWrite:
     mtrk                = b'\x4d\x54\x72\x6b'
     track_chunk_length  = b'\x00\x00\x00\x14'
 
-    eof                 = b'\x00\xff\x2f\x00'
+    eof                 = b'\x01\xff\x2f\x00'
 
     @staticmethod
     def set_custom_file(file: str):
@@ -282,7 +294,7 @@ class MidiWrite:
         :return: none
         '''
         fmat         = b'\x00\x01'  # multiple-track format
-        track        = b'\x00\x02'  # 1 track
+        track        = b'\x00\x02'  # 2 tracks
         quart_length = b'\x00\x60'  # quarter tick length
 
         with open(file, "wb") as f:
@@ -344,6 +356,11 @@ class MidiWrite:
 
     @staticmethod
     def write_track(file: str, commands: [bytes], title='Main', key='Cmaj', shift=0, debug=False, arpeggiate=False):
+        MidiWrite.key_sig = key
+
+        if shift is None:
+            shift = 0
+
         if shift != 0:
             if shift < 0:
                 MidiWrite.octave_shift_down(abs(shift))
@@ -362,7 +379,7 @@ class MidiWrite:
         :return:
         '''
         chunk_length = b'\x00\x00'
-        preset = b'\x00\xc1' + bytes([24])
+        preset = b'\x00\xc1' + bytes([24])  # guitar
         chunk_title = b'\x00\xff\x03'
         key_sig = b'\x00\xff\x59\x02'
 
@@ -377,7 +394,7 @@ class MidiWrite:
         key_sig += bytes([major_minor])
 
         # not sure why count is 1 less than it needs to be
-        count = 1 + len(chunk_length) + len(MidiWrite.eof) + len(chunk_title) + len(key_sig)
+        count = 1 + len(chunk_length) + len(chunk_title) + len(key_sig) + len(MidiWrite.eof)
         notes_list = []
 
         flip = False
@@ -429,7 +446,7 @@ class MidiWrite:
         delay             = b'\x81\x40'
         time_arp_delay    = b'\x30'  # 1/2 of b'\x60', the quarter note length
 
-        notes, arpeggiate, arp_rev, note_type = MidiWrite.chord_shape(chord)
+        notes, arpeggiate, arp_rev, note_type = MidiWrite.chord_shape(chord, mode="rn_mode")
 
         if arp_rev:
             flip = not flip
@@ -485,7 +502,7 @@ class MidiWrite:
                     b'\x81\x40\x4c\x00']  # return single note
 
     @staticmethod
-    def chord_shape(chord) -> [int]:
+    def chord_shape(chord, mode="cn_mode") -> [int]:
         '''
         determine the notes of the chord based on chord type / fret locations
         :param chord: the chord to find the notes of
@@ -500,7 +517,6 @@ class MidiWrite:
         if isinstance(chord, str):
             # check for arpeggio flags
             if "-a" in chord:
-                found_flags = True
                 arpeggiate = True
                 if "-ar" in chord:
                     arp_rev = True
@@ -518,9 +534,91 @@ class MidiWrite:
                         note_type = flag[1:]
                         search_chord = search_chord.replace(flag, '')
                         break
-                    else:
+                    elif flag in search_chord and found_flags:
+                        print(search_chord)
                         print("Error: time flag already selected: -" + note_type)
                         exit(1)
+
+            if mode == 'rn_mode':
+                base = None
+                scale = None
+                for element in ToneHelper.scale_dict:
+                    if element in MidiWrite.key_sig:
+                        base = element
+                        maj_min = 0 if "maj" in MidiWrite.key_sig else 1
+
+                        scale = ToneHelper.rn_major if not maj_min else ToneHelper.rn_minor
+                        break
+
+                for value in scale:
+                    if value in search_chord.lower():
+                        adjust = ToneHelper.scale_dict[base][scale[value] % 7]
+                        # TODO: allow user to specify ## and bb chords as well
+                        if "#" in search_chord:
+                            if "b" in adjust:
+                                adjust = adjust.replace("b", "")
+                            elif "#" not in adjust:
+                                adjust = ToneHelper.scale_dict[base][(scale[value] + 1) % 7]
+                                adjust = adjust.replace("#", "")
+                            else:
+                                adjust = ToneHelper.scale_dict[base][(scale[value] + 1) % 7]
+                        elif "b" in search_chord:
+                            if "#" in adjust:
+                                adjust = adjust.replace("#", "")
+                            elif "b" not in adjust:
+                                # make sure scale[value] - 1 is always positive
+                                adjust = ToneHelper.scale_dict[base][((scale[value] - 1) + 7) % 7]
+                                adjust = adjust.replace("b", "")
+                            else:
+                                adjust = ToneHelper.scale_dict[base][((scale[value] - 1) + 7) % 7]
+
+                        if adjust is None:
+                            if value.upper() in search_chord:
+                                search_chord = search_chord.replace(value.upper(), value + "maj")
+                            else:
+                                search_chord = search_chord.replace(value, value + "m")
+                        else:
+                            search_chord = search_chord.replace("#", "")
+                            if value.upper() in search_chord:
+                                search_chord = search_chord.replace(value.upper(), adjust + "maj")
+                            else:
+                                search_chord = search_chord.replace(value, adjust + "m")
+                        break
+
+                    # TODO: test secondary chord sub code snippet
+                    if "/" in search_chord:  # secondary dominant
+                        # first, replace all *'s
+                        secondary_value = re.sub(r'[*]+', r'', search_chord.split("/")[1]).lower()
+                        value = search_chord.split("/")[0][:-1].lower()
+                        # then search for the secondary_value chord in the key of value from base
+                        adjust = ToneHelper.scale_dict[
+                            ToneHelper.scale_dict[base][(scale[secondary_value])]][(scale[value] - 1)]
+                        # edit if sharp is found
+                        if "#" in search_chord:
+                            if "b" in adjust:
+                                adjust = adjust.replace("b", "")
+                            elif "#" not in adjust:
+                                adjust = ToneHelper.scale_dict[base][(scale[value] + 1) % 7]
+                                adjust = adjust.replace("#", "")
+                            else:
+                                adjust = ToneHelper.scale_dict[base][(scale[value] + 1) % 7]
+                        elif "b" in search_chord:
+                            if "#" in adjust:
+                                adjust = adjust.replace("#", "")
+                            elif "b" not in adjust:
+                                adjust = ToneHelper.scale_dict[base][((scale[value] - 1) + 7) % 7]
+                                adjust = adjust.replace("b", "")
+                            else:
+                                adjust = ToneHelper.scale_dict[base][((scale[value] - 1) + 7) % 7]
+                        if "***" in search_chord:
+                            search_chord = adjust + "7***"
+                        elif "**" in search_chord:
+                            search_chord = adjust + "7**"
+                        else:
+                            search_chord = adjust + "7*"
+
+                if "13" in search_chord:
+                    search_chord = search_chord.replace("maj", "").replace("m", "")
 
             # look for note and chord type in dictionaries
             for element in MidiWrite.note_map:
@@ -541,13 +639,14 @@ class MidiWrite:
                         # custom file defines chords like so: <chord> : <[notes]> or <chord>:<fret notation>
                         # TODO: currently can only define one type of custom chord, edit to allow multiple
                         # e.g. F7%, F7%%, etc
+                        # or F7%, F7%[2], etc
                         custom_dict = {}
                         if MidiWrite.custom_file is not None:
                             with open(MidiWrite.custom_file, 'r') as f:
                                 for line in f:
                                     definition = line.split(":")
 
-                                    if 'x' in definition[1][0]:  # fret-notation
+                                    if 'x' in definition[1] or any(char.isdigit() for char in definition[1]):  # fret-notation
                                         search_chord = definition[1]
                                         break
 
@@ -611,7 +710,7 @@ class MidiWrite:
             if len(notes[i]) > 2:
                 notes[i] = notes[i][:2]
             for key, value in MidiWrite.note_map.items():
-                if key == notes[i]:
+                if key in notes[i]:
                     notes[i] = MidiWrite.note_map[key] + (12 * (1 + octaves[i]))
                     break
 

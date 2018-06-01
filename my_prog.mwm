@@ -3,6 +3,7 @@
            <time-sig=4/4>
            <tempo=88>
            <key-sig=Dbmaj>
+           <mode=cn_mode>
        </prefix>
        <custom_file="extras.txt">
        <commands>

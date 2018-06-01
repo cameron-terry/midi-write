@@ -1,0 +1,15 @@
+<begin my_prog>
+       <prefix>
+           <time-sig=4/4>
+           <tempo=88>
+           <key-sig=Dbmaj>
+           <mode=rn_mode>
+       </prefix>
+       <custom_file="extras.txt">
+       <commands>
+            ["-a I7**", "F7%", "-e vi7*", "-e v#7*",
+             "-e v7*", "-e V7/V**", "-q IV7*", "-q x2222x",
+             "-a I7**", "vi7*", "-ar ii7**", "V13*"]
+       </commands>
+<end my_prog>
+

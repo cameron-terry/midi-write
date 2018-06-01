@@ -7,6 +7,7 @@ if __name__ == "__main__":
     file = sys.argv[1]
     output_file = file[:-4] + ".midi"
     custom_file = None
+    mode = None
     title = None
     tempo = None
     time_sig = None
@@ -49,6 +50,8 @@ if __name__ == "__main__":
                     tempo = int(line.split("=")[1])
                 elif line.startswith("key-sig"):
                     key_sig = line.split("=")[1]
+                elif line.startswith("mode"):
+                    mode = line.split("=")[1]
                 elif line == "/prefix":
                     if prefix:
                         prefix = False
