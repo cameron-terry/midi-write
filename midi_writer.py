@@ -5,9 +5,7 @@
 #       user can point to a custom defined file
 # TODO: change hardcoded delays
 # TODO: add support for single notes, scales and other musical ideas
-#       e.g. add support for cycle of fifths, hammer-ons / pull-offs, and more
-# TODO: add support for specifying chords by key
-#       e.g. key=C, I -> V -> iv -> IV = C -> G -> Fm -> A
+#       e.g. add support for hammer-ons / pull-offs, and more
 ##-------------------------------------------------------------------------------------------------------------------##
 # MidiWrite by Cameron Terry
 # May 28, 2018
@@ -21,6 +19,7 @@ import struct
 import math
 import re
 from ToneHelper import ToneHelper
+
 
 # class for helper functions
 class Misc:
@@ -37,8 +36,6 @@ class Misc:
 
 
 class MidiWrite:
-    ppq = b'\x00\x60'  # parts per quarter (ticks per quarter note length)
-
     note_map = ToneHelper.note_map
     key_signature = None
 
@@ -427,8 +424,6 @@ class MidiWrite:
 
             if mode == 'rn_mode':
                 base = None
-                scale = None
-                adjust = None
                 secondary_chord = False
 
                 sfs = ["bb", "b", "#", "##"]
@@ -436,14 +431,11 @@ class MidiWrite:
                 for element in ToneHelper.scale_dict:
                     if element in MidiWrite.key_signature:
                         base = element
-
-                        scale = ToneHelper.rn_scale
                         break
 
-                for value in scale:
+                for value in ToneHelper.rn_scale:
                     if value in search_chord.lower():
                         acc = None
-                        # TODO: test secondary chord sub code snippet, combine the two checks
                         if "/" in search_chord:  # secondary chord
                             secondary_chord = True
                             # first, replace all *'s
@@ -459,14 +451,12 @@ class MidiWrite:
                                     primary_value = primary_value.replace(accidentals, "")
                                     search_chord = search_chord.replace(accidentals, "")
 
-                            adjust = ToneHelper.scale_dict[base][ToneHelper.rn_scale[primary_value]]
+                            adjust = ToneHelper.shift_to_scale(primary_value, base)
 
                             if acc is not None:
                                 adjust = ToneHelper.sharp_flat_shifted_note(acc, secondary_value, adjust)
                             else:
-                                adjust = ToneHelper.scale_dict[adjust][ToneHelper.rn_scale[secondary_value]]
-
-                        # TODO: write a function for this specific lookup?
+                                adjust = ToneHelper.shift_to_scale(secondary_value, adjust)
                         else:
                             primary_value = None
                             for accidentals in sfs:
@@ -478,7 +468,7 @@ class MidiWrite:
                             if acc is not None:
                                 adjust = ToneHelper.sharp_flat_shifted_note(acc, primary_value, base)
                             else:
-                                adjust = ToneHelper.scale_dict[base][ToneHelper.rn_scale[value]]
+                                adjust = ToneHelper.shift_to_scale(value, base)
 
                         if value.upper() in search_chord:
                             search_chord = search_chord.replace(value.upper(), adjust + "maj")
@@ -593,3 +583,23 @@ class MidiWrite:
                     break
 
         return notes, arpeggiate, arp_rev, note_type
+
+    @staticmethod
+    def get_chords(c_type: str) -> [str]:
+        """
+        Returns requested chords.
+        :param c_type: type of chord
+        :return: all chords matching the request
+        """
+
+        return [entry for entry in ToneHelper.chord_dict if c_type in entry]
+
+    @staticmethod
+    def build_base_chords(bases: [str], c_type: str) -> [str]:
+        """
+        Return a list of base chords built from a type and base notes.
+        :param bases: list of bases
+        :param c_type: type of chord
+        :return: chords built from the following prerequisite variables
+        """
+        return [[base + chord for chord in MidiWrite.get_chords(c_type)] for base in bases]

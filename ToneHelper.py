@@ -6,14 +6,13 @@ class ToneHelper:
         "Db": 37, "Eb": 39, "Gb": 42, "Ab": 44, "Bb": 46,
         "D": 38, "C": 36,  "E": 40, "F": 41, "G": 43, "A": 45, "B": 47
     }
+
+    chromatic = ["C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B"]
+
     # used for translating fret-based input
-    guitar_map_standard_tuning = {
-        "E": ["E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B", "C", "C#/Db", "D", "D#/Eb"],
-        "A": ["A", "A#/Bb", "B", "C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab"],
-        "D": ["D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B", "C", "C#/Db"],
-        "G": ["G", "G#/Ab", "A", "A#/Bb", "B", "C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb"],
-        "B": ["B", "C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb"],
-    }
+    guitar_map_standard_tuning = dict(E=chromatic[-8:] + chromatic[:-8], A=chromatic[-3:] + chromatic[:-3],
+                                      D=chromatic[-10:] + chromatic[:-10], G=chromatic[-5:] + chromatic[:-5],
+                                      B=["B", "C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb"])
 
     # used for translating chords to notes
     chord_dict = {
@@ -76,8 +75,6 @@ class ToneHelper:
         'C': -3, 'G': -2, 'D': -1, 'A': 0, 'E': 1, 'B': 2
     }
 
-    chromatic = ["C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B"]
-
     patterns = {
         "4/4:1": ["03-1-2-03-2-1"],
         "4/4:2": ["0-1-2-3-2-1"],
@@ -132,10 +129,20 @@ class ToneHelper:
         else:
             raise ValueError
 
-    # TODO: rewrite so shift relies on another function to calculate new note
+    @staticmethod
+    def shift_to_scale(shift: str, base: str) -> str:
+        """
+        Shifts into a new key given a base note.
+        :param shift: the chord's tonic to shift to
+        :param base: the original chord
+        :return: the new key
+        """
+        return ToneHelper.scale_dict[base][ToneHelper.rn_scale[shift]]
+
     @staticmethod
     def sharp_flat_shifted_note(sf: str, shift: str, base: str) -> str:
         """
+        Shifts notes affected by accidentals.
         :param sf: number of sharps / flats
         :param shift: roman numeral number to shift
         :param base: root key
@@ -146,14 +153,14 @@ class ToneHelper:
         if sf == "bb":
             note = ToneHelper.scale_dict[base][ToneHelper.rn_scale[shift] - 1]
         elif sf == "b":
-            note = ToneHelper.scale_dict[base][ToneHelper.rn_scale[shift]]
+            note = ToneHelper.shift_to_scale(shift, base)
             for i in range(len(ToneHelper.chromatic)):
                 if ToneHelper.chromatic[i][-2:] == note or ToneHelper.chromatic[i][:2] == note:
                     return ToneHelper.chromatic[(i - 1 + 12) % 12][-2:]
         elif sf == "##":
             note = ToneHelper.scale_dict[base][ToneHelper.rn_scale[shift] + 1]
         elif sf == "#":
-            note = ToneHelper.scale_dict[base][ToneHelper.rn_scale[shift]]
+            note = ToneHelper.shift_to_scale(shift, base)
             for i in range(len(ToneHelper.chromatic)):
                 if ToneHelper.chromatic[i][:2] == note or ToneHelper.chromatic[i][-2:] == note:
                     return ToneHelper.chromatic[(i + 1) % 12][:2]
@@ -162,3 +169,21 @@ class ToneHelper:
             exit(1)
 
         return note
+
+    @staticmethod
+    def cycle_of_mths(base: str, n: int, spacing: str='iv') -> [str]:
+        """
+        Calculates a cycle of mths progression for a given base up to n iterations.
+        Leave spacing default for cycle of fifths.
+        :param base: the base key
+        :param n: number of iterations
+        :param spacing: the spacing between key changes
+        :return: A list of key changes
+        """
+        cycle = ['0' for _ in range(n)]
+        cycle[0] = base
+
+        for _ in range(n - 1):
+            cycle[_ + 1] = ToneHelper.shift_to_scale(spacing, cycle[_])  # down a 4th = up a 5th and vice versa
+
+        return cycle
