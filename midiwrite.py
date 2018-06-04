@@ -7,11 +7,12 @@ if __name__ == "__main__":
     file = sys.argv[1]
     output_file = file[:-4] + ".midi"
     custom_file = None
-    mode = None
+    mode = "cn_mode"
     title = None
-    tempo = None
-    time_sig = None
-    key_sig = None
+    ppq = 96
+    tempo = 120
+    time_sig = "4/4"
+    key_sig = "Cmaj"
     command_listing = False
     commands = []
 
@@ -52,6 +53,8 @@ if __name__ == "__main__":
                     key_sig = line.split("=")[1]
                 elif line.startswith("mode"):
                     mode = line.split("=")[1]
+                elif line.startswith("ppq"):
+                    ppq = line.split("=")[1]
                 elif line == "/prefix":
                     if prefix:
                         prefix = False
@@ -80,30 +83,22 @@ if __name__ == "__main__":
 
     MidiWrite.set_custom_file(custom_file)
 
-    if was_prefix:
-        if time_sig is not None and tempo is None:
-            MidiWrite.write_preqs(output_file, time=time_sig)
-        elif time_sig is None and tempo is not None:
-            MidiWrite.write_preqs(output_file, tempo=tempo)
-        else:
-            MidiWrite.write_preqs(output_file, time=time_sig, tempo=tempo)
-    else:
-        MidiWrite.write_preqs(output_file)
+    MidiWrite.write_preqs(output_file, time=time_sig, tempo=tempo, ppq=ppq)
 
     if time_sig is None:
         if tempo is not None and key_sig is None:
-            MidiWrite.write_track(output_file, commands, title=title, shift=octave_shift)
+            MidiWrite.write_track(output_file, commands, title=title, shift=octave_shift, mode=mode)
         elif tempo is None and key_sig is not None:
-            MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift)
+            MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift, mode=mode)
     elif tempo is None:
         if key_sig is None:
-            MidiWrite.write_track(output_file, commands, title=title, shift=octave_shift)
+            MidiWrite.write_track(output_file, commands, title=title, shift=octave_shift, mode=mode)
         else:
-            MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift)
+            MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift, mode=mode)
     elif key_sig is None:
         if tempo is None:
-            MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift)
+            MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift, mode=mode)
         else:
-            MidiWrite.write_track(output_file, commands, title=title, shift=octave_shift)
+            MidiWrite.write_track(output_file, commands, title=title, shift=octave_shift, mode=mode)
     else:
-        MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift)
+        MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift, mode=mode)
