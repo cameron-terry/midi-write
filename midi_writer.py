@@ -1,11 +1,12 @@
 ##-------------------------------------------------------------------------------------------------------------------##
 # note: currenty musescore does not open these kinds of .midi files, unexpected eof
-# TODO: add support for arpeggio patterns e.g. "4/4:1;[03-1-2-03-1-2]"
+# TODO: check support for arpeggio patterns e.g. "4/4:1;[03-1-2-03-1-2]"
 #       for now patterns are dotted eighths
 #       user can point to a custom defined file
-# TODO: change hardcoded delays
-# TODO: add support for single notes, scales and other musical ideas
+# TODO: add support for single notes, scales and other musical ideas including common progressions
 #       e.g. add support for hammer-ons / pull-offs, and more
+# TODO: improve debug functionality
+#       give more feedback on different areas of the program
 ##-------------------------------------------------------------------------------------------------------------------##
 # MidiWrite by Cameron Terry
 # May 28, 2018
@@ -37,6 +38,7 @@ class Misc:
 
 class MidiWrite:
     note_map = ToneHelper.note_map
+    ppq = None
     key_signature = None
 
     # user defined file that contains additional chord mappings
@@ -86,6 +88,7 @@ class MidiWrite:
                 MidiWrite.note_map[key] += n * 12
 
     # based on pseudo-code from http://midi.teragonaudio.com/tech/midifile/vari.htm
+    # and http://need12648430.github.io/tinysmf/docs/
     @staticmethod
     def write_var_len(n: int) -> [int]:
         """
@@ -93,38 +96,35 @@ class MidiWrite:
         :param n: the integer to convert
         :return: variable-length quantity array of the integer
         """
-
-        # constants
-        EIGHT_BIT_MAX = 256
-        SEVEN_BIT_MAX = 128
-
+        original = n
         byte_arr = [0 for _ in range(4)]
-        count = 0
 
-        while True:
-            if n < SEVEN_BIT_MAX:
-                byte_arr[count] = n & 0x7f
-                count += 1
-                break
-            else:
-                result = n
-                byte_arr[count] = result & 0x7f | 0x80
-                count += 1
-                n >>= 7
+        c = n & 0x7F
+        i = 0
+        n >>= 7
+        byte_arr[i] = c
+        i += 1
 
-        byte_arr = byte_arr[:count]
+        while n > 0:
+            c = 0x80 | (n & 0x7F)
+            n >>= 7
+            byte_arr[i] = c
+            i += 1
+
+        byte_arr = byte_arr[:i]
         byte_arr.reverse()
 
-        r = True  # used for additional formatting
-        for i in range(len(byte_arr)):
-            if i < len(byte_arr) - 1:
-                if byte_arr[i] + byte_arr[i + 1] < EIGHT_BIT_MAX:
-                    byte_arr[i] = byte_arr[i] + byte_arr[i + 1]
-                    byte_arr[i + 1] = 0
-                    r = False
+        if i == 1:
+            byte_arr = [0] + byte_arr
 
-        if r:
-            byte_arr.reverse()
+        if MidiWrite.debug:
+            statement = "Convert {} [{}] to variable-length quantity".format(original, hex(original))
+            print(statement)
+            print("="*len(statement))
+            print("Byte transfer started...")
+            for i in range(len(byte_arr)):
+                print("Original: {}, sending byte {}: {}".format(original, i+1, hex(byte_arr[i])))
+            print("Done sending.\n")
 
         byte_arr = array.array('B', byte_arr).tostring()
         return byte_arr
@@ -136,12 +136,19 @@ class MidiWrite:
         :param n: the variable-length quantity to convert
         :return: integer representation of the variable-length quantity
         """
-        result = 0
-        for val in n:
-            result <<= 7
-            result |= (val & 0x7f)
-            if not (val & 0x80 == 0x80):
-                return result
+        i = 0
+        c = n[i]
+        q = c & 0x7f
+
+        while c & 0x80:
+            i += 1
+            c = n[i]
+            q = (q << 7) | (c & 0x7f)
+
+        if len(n) > 0 and q == 0:
+            q = n[1]
+
+        return q
 
     @staticmethod
     def write_preqs(file: str, time: str="4/4", tempo: int=120, ppq: int=96):
@@ -158,7 +165,7 @@ class MidiWrite:
             print("File not could be created.")
             exit(1)
 
-        MidiWrite.ppq = bytes([ppq])
+        MidiWrite.ppq = MidiWrite.write_var_len(ppq)
 
         MidiWrite.write_header_chunk(file)
         MidiWrite.write_track_chunk(file, time, tempo)
@@ -170,9 +177,9 @@ class MidiWrite:
         :param file: the midi file to write to
         :return: none
         """
-        fmat         = b'\x00\x01'  # multiple-track format
-        track        = b'\x00\x02'  # 2 tracks
-        quart_length = b'\x00\x60'  # quarter tick length
+        fmat         = MidiWrite.write_var_len(1)  # multiple-track format (0 is single)
+        track        = MidiWrite.write_var_len(2)  # 2 tracks (header, track)
+        quart_length = MidiWrite.ppq  # quarter tick length
 
         with open(file, "wb") as f:
             f.write(MidiWrite.mthd)
@@ -259,7 +266,7 @@ class MidiWrite:
         if debug:
             MidiWrite.debug = True
 
-        chunk_length = b'\x00\x00'
+        chunk_length = b'\x00\x00'  # TODO: what is this used for?
         preset = b'\x00\xc1' + bytes([24])  # guitar
         chunk_title = b'\x00\xff\x03'
         key_sig = b'\x00\xff\x59\x02'
@@ -306,11 +313,14 @@ class MidiWrite:
 
             for i in range(len(notes_list)):
                 if MidiWrite.debug:
-                    print("Writing \"%s\" to %s... " % (commands[i], file), end="", flush=True)
+                    statement = "Write {} to {}".format(commands[i], file)
+                    print(statement)
+                    print("=" * len(statement))
+                    print("Writing \"{}\" to {}... ".format(commands[i], file), end="")
                 for note in notes_list[i]:
                     f.write(note)
                 if MidiWrite.debug:
-                    print("Done.")
+                    print("Done.\n")
 
             f.write(MidiWrite.eof)
 
@@ -324,50 +334,122 @@ class MidiWrite:
         start_simul       = b'\x00\x90'
         note_on           = b'\x40'
         note_off          = b'\x00'
-        delay             = b'\x81\x40'
-        time_arp_delay    = b'\x30'  # 1/2 of b'\x60', the quarter note length
+        delay             = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 2)  # half note default
+        time_arp_delay    = bytes([MidiWrite.ppq[1] // 2])  # 1/2 of b'\x60', the quarter note length
 
-        notes, arpeggiate, arp_rev, note_type = MidiWrite.chord_shape(chord, mode=mode)
+        notes, arpeggiate, arp_rev, note_type, pattern = MidiWrite.chord_shape(chord, mode=mode)
 
         if arp_rev:
             flip = not flip
 
-        # TODO: test all delays
-        if note_type == '-w.':
-            pass
-        if note_type == 'w':  # have to test
-            delay = b'\x90\xf2'  # or b'\xc0'?
-            time_arp_delay = b'\xc1'
-        elif note_type == 'h':  # is equivalent to default?
-            pass
+        # TODO: test all delays and finish patterns
+        if note_type == 'o':
+            if pattern is not None:  # triplet version
+                delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 2.67))
+                time_arp_delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 1.335))
+            else:
+                delay = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 8)
+                time_arp_delay = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 4)
+        elif note_type == '.w':
+            if pattern is not None:
+                delay = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 4)
+                time_arp_delay = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 2)
+            else:
+                delay = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 6)
+                time_arp_delay = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 3)
+        elif note_type == 'w':
+            if pattern is not None:
+                delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 2.67))
+                time_arp_delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 1.335))
+            else:
+                delay = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 4)
+                time_arp_delay = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 2)
+        elif note_type == '.h':  # divide by 1.5
+            if pattern is not None:
+                delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 2))
+                time_arp_delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 1))
+            else:
+                delay = MidiWrite.write_var_len(MidiWrite.read_var_len(MidiWrite.ppq) * 3)
+                time_arp_delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 1.5))
+        elif note_type == 'h':
+            if pattern is not None:
+                delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 1.34))
+                time_arp_delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 0.665))
+            else:
+                pass
+        elif note_type == '.q':
+            delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 1.5))
+            time_arp_delay = MidiWrite.write_var_len(int(MidiWrite.read_var_len(MidiWrite.ppq) * 0.75))
         elif note_type == 'q':  # works
-            delay = b'\x60'
-            time_arp_delay = b'\x30'
+            delay = bytes([MidiWrite.ppq[1]])  # don't send the /x00 (trial & error)
+            time_arp_delay = bytes([MidiWrite.ppq[1] // 2])
+        elif note_type == '.e':
+            delay = bytes([int(MidiWrite.ppq[1] * 0.75)])
+            time_arp_delay = bytes([int(MidiWrite.ppq[1] * 0.375)])
         elif note_type == 'e':  # works
-            delay = b'\x30'
-            time_arp_delay = b'\x18'
+            delay = bytes([MidiWrite.ppq[1] // 2])
+            time_arp_delay = bytes([MidiWrite.ppq[1] // 4])
+        elif note_type == '.s':
+            delay = bytes([int(MidiWrite.ppq[1] * 0.375)])
+            time_arp_delay = bytes([int(MidiWrite.ppq[1] * 0.1875)])
         elif note_type == 's':
-            delay = b'\x18'
-            time_arp_delay = b'\x0c'
+            delay = bytes([MidiWrite.ppq[1] // 4])
+            time_arp_delay = bytes([MidiWrite.ppq[1] // 8])
+        elif note_type == '.t':
+            delay = bytes([int(MidiWrite.ppq[1] * 0.1875)])
+            time_arp_delay = bytes([int(MidiWrite.ppq[1] * 0.09375)])
         elif note_type == 't':
-            delay = b'\x0c'
-            time_arp_delay = b'\x06'
+            delay = bytes([MidiWrite.ppq[1] // 8])
+            time_arp_delay = bytes([MidiWrite.ppq[1] // 16])
 
         note_arr = []
 
         if notes:
+            # TODO: make num_notes variable
+            num_notes = 4 if len(notes) >= 4 else len(notes)
             if not arpeggiate:
-                for i in range(len(notes)):
-                    # means 0x90 - turn on - 0x?? - 60 + n (C#, 60 is C) -- 0x40
-                    note_arr.append(start_simul + bytes(notes[i:i+1]) + note_on)
+                if pattern is not None:
+                    pattern = pattern.split("-")
+                    for seg in pattern:
+                        value = 0
+                        for i in range(len(seg)):
+                            value = int(seg[i])
 
-                note_arr.append(delay + bytes(notes[len(notes)-1:len(notes)]) + note_off)
+                            # means 0x90 - turn on - 0x?? - 60 + n (C#, 60 is C) -- 0x40
+                            note_arr.append(start_simul + bytes(notes[value:value+1]) + note_on)
+                            if MidiWrite.debug:
+                                statement = "Note on"
+                                print(statement)
+                                print("="*len(statement))
+                                print("{} on".format(notes[value:value+1]))
 
-                for j in range(len(notes) - 1, 0, -1):
-                    # turn off all at same time
-                    note_arr.append(b'\x00' + bytes(notes[j-1:j]) + note_off)
+                        note_arr.append(delay + bytes(notes[value:value+1]) + note_off)
+                        if MidiWrite.debug:
+                            statement = "Note off"
+                            print(statement)
+                            print("=" * len(statement))
+                            print("{} off".format(notes[value:value+1]))
+
+                        for i in range(len(seg) - 1):
+                            value = int(seg[i])
+                            note_arr.append(b'\x00' + bytes(notes[value:value+1]) + note_off)
+                            if MidiWrite.debug:
+                                statement = "Note off"
+                                print(statement)
+                                print("=" * len(statement))
+                                print("{} off".format(notes[value:value+1]))
+
+                else:
+                    for i in range(len(notes)):
+                        # means 0x90 - turn on - 0x?? - 60 + n (C#, 60 is C) -- 0x40
+                        note_arr.append(start_simul + bytes(notes[i:i+1]) + note_on)
+
+                    note_arr.append(delay + bytes(notes[len(notes)-1:len(notes)]) + note_off)
+
+                    for j in range(len(notes) - 1, 0, -1):
+                        # turn off all at same time
+                        note_arr.append(b'\x00' + bytes(notes[j-1:j]) + note_off)
             else:
-                num_notes = 4 if len(notes) >= 4 else len(notes)
                 if not flip:
                     for i in range(num_notes):
                         # means 0x90 - turn on - 0x?? - 60 + n (C#, 60 is C) -- 0x40
@@ -381,8 +463,9 @@ class MidiWrite:
 
             return note_arr
         else:
-            return [b'\x81\x40\x90\x4c\x20',
-                    b'\x81\x40\x4c\x00']  # return single note
+            failed_note = 'C'
+            return [b'\x81\x40\x90' + bytes([ToneHelper.note_map[failed_note]]) + b'\x20',
+                    b'\x81\x40' + bytes([ToneHelper.note_map[failed_note]]) + b'\x00']  # return single failed note
 
     @staticmethod
     def chord_shape(chord, mode="cn_mode") -> [int]:
@@ -393,12 +476,35 @@ class MidiWrite:
         :return: the chord as a set of integer notes
         """
         arpeggiate = False
+        pattern = None
         arp_rev = False
         found_flags = False
         search_chord = chord
         note_type = 'd'
         
         if isinstance(chord, str):
+            # TODO: make sure pattern time sig matches given time sig
+            # check for pattern signal
+            for pat in ToneHelper.patterns:
+                if pat in chord:
+                    pattern = ToneHelper.patterns[pat]
+                    if pattern is None and MidiWrite.custom_file is not None:
+                        if MidiWrite.debug:
+                            print("Pattern not found in default, searching {}...".format(MidiWrite.custom_file))
+                        with open(MidiWrite.custom_file, 'r') as f:
+                            custom_pattern_dict = {}
+                            for line in f:
+                                line = line.split(";")
+                                if len(line) > 1:
+                                    custom_pattern_dict[line[0]] = line[1]  # is a str?
+                            for c_pat in custom_pattern_dict:
+                                if c_pat in chord:
+                                    pattern = custom_pattern_dict[c_pat]
+                    else:
+                        if MidiWrite.debug:
+                            print("pattern found: {}".format(pattern))
+                        search_chord = search_chord.replace(pat, "")
+
             # check for arpeggio flags
             if "-a" in chord:
                 arpeggiate = True
@@ -408,7 +514,7 @@ class MidiWrite:
                 else:
                     search_chord = search_chord.replace('-a', '')
 
-            time_flags = ['-.w', '-w', '-h', '-q', '-e', '-s', '-t']
+            time_flags = ['-o', '-.w', '-w', '-.h', '-h', '-.q', '-q', '-.e', '-e', '-.s', '-s', '-.t', '-t']
 
             # check to make sure only one time flag is selected
             for _ in range(2):
@@ -472,6 +578,7 @@ class MidiWrite:
 
                         if value.upper() in search_chord:
                             search_chord = search_chord.replace(value.upper(), adjust + "maj")
+
                         else:
                             search_chord = search_chord.replace(value.lower(), adjust + "m")
 
@@ -479,6 +586,12 @@ class MidiWrite:
                             search_chord = search_chord.replace("maj", "").replace("m", "")
                         elif "13" in search_chord:
                             search_chord = search_chord.replace("maj", "").replace("m", "")
+
+                        if MidiWrite.debug:
+                            statement = "Convert roman numeral to chord name"
+                            print(statement)
+                            print("="*len(statement))
+                            print("[{}] resolved to [{}].\n".format(chord, search_chord))
 
                         break
 
@@ -490,12 +603,26 @@ class MidiWrite:
                         for c_shape in ToneHelper.chord_dict:
                             if c_shape in search_chord:
                                 if "***" in search_chord:
-                                    return [24 + base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type
+                                    if MidiWrite.debug:
+                                        statement = "Found chord"
+                                        print(statement)
+                                        print("=" * len(statement))
+                                        print("Chord [{}] found: [{}]\n".format(search_chord, str(c_shape + "**")))
+                                    return [24 + base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type, pattern
                                 elif "**" in search_chord:
-                                    return [12 + base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type
+                                    if MidiWrite.debug:
+                                        statement = "Found chord"
+                                        print(statement)
+                                        print("=" * len(statement))
+                                        print("Chord [{}] found: [{}]\n".format(search_chord, str(c_shape + "*")))
+                                    return [12 + base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type, pattern
                                 elif "*" in search_chord:
-                                    return [base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type
-
+                                    if MidiWrite.debug:
+                                        statement = "Found chord"
+                                        print(statement)
+                                        print("=" * len(statement))
+                                        print("Chord [{}] found: [{}]\n".format(search_chord, str(c_shape)))
+                                    return [base + i for i in ToneHelper.chord_dict[c_shape]], arpeggiate, arp_rev, note_type, pattern
                     else:
                         # look for chord in separate custom file
                         # custom file defines chords like so: <chord> : <[notes]> or <chord>:<fret notation>
@@ -522,12 +649,15 @@ class MidiWrite:
 
                             for custom_c_shape in custom_dict:
                                 if custom_c_shape in search_chord:
-                                    return [base + int(i) for i in custom_dict[custom_c_shape]], arpeggiate, arp_rev, note_type
+                                    return [base + int(i) for i in custom_dict[custom_c_shape]], arpeggiate, arp_rev, note_type, pattern
 
         # assume chord is in fret-notation
         if 'x' not in search_chord and not any(char.isdigit() for char in search_chord):
             print("Chord " + search_chord + " not found. Either chord has not been added or chord is incorrectly typed.")
             return [0], False, False, note_type
+
+        if MidiWrite.debug:
+            print("Assuming [{}] to be in fret notation.\n".format(search_chord))
 
         notes = []
         octaves = [0, 0, 0, 0, 0, 0]
@@ -582,7 +712,10 @@ class MidiWrite:
                     notes[i] = MidiWrite.note_map[key] + (12 * (1 + octaves[i]))
                     break
 
-        return notes, arpeggiate, arp_rev, note_type
+        if MidiWrite.debug:
+            print("Fret notation chord [{}] created.\n".format(search_chord))
+
+        return notes, arpeggiate, arp_rev, note_type, pattern
 
     @staticmethod
     def get_chords(c_type: str) -> [str]:
