@@ -7,12 +7,12 @@ MidiWrite makes turning a chord progression into a MIDI file a simple process wh
 
 MidiWrite takes in a series of chords and creates a MIDI file in the directory MidiWrite was ran. It accepts chords of the following types:
 
-|   Command  | Type of chord |
-|:----------:|:-------------:|
-|  [chord*]  | 6 string root |
-|  [chord**] | 5 string root |
-| [chord***] | 4 string root |
-|  [eadgbe]  | fret notation |
+|      Command     | Type of chord |
+|:----------------:|:-------------:|
+|  ```[chord*]```  | 6 string root |
+|  ```[chord**]``` | 5 string root |
+| ```[chord***]``` | 4 string root |
+|  ```[eadgbe]```  | fret notation |
 
 # Custom Files
 MidiWrite can be pointed to a text file containing definitions of user-defined chords.
@@ -21,6 +21,9 @@ A user-defined chord looks like the following:
     <chord>%:<[notes]> or <chord>%<[fret notation]>
 
 The **%** denotes a user-defined chord.
+
+To specify multiple user-defined transpositions of the same chord, use ```<chord>%[i]``` to refer to a specific transposition.
+  
 
 
 # Markup Language
@@ -40,31 +43,31 @@ A sample markup file is shown below.
         </commands>
     <end [title]>
 
-where **commands** contains a comma-separated list of chords *(see my_prog.mwm).*
+where ```<commands>``` contains a comma-separated list of chords *(see my_prog.mwm).*
+Note that ```<prefix>``` is unnecessary if a time signature of *4/4*, tempo of *120* and key signature of *Cmaj* are desired.
 
-MidiWrite supports two modes of chord entry: chord name mode and roman numeral mode.
+MidiWrite supports two modes of chord entry: *chord name mode* and *roman numeral mode*.
 
-|   mode  |        type        |
-|:-------:|:------------------:|
-| cn_mode |   chord name mode  |
-| rn_mode | roman numeral mode |
-
-Note that the prefix is unnecessary if a time signature of *4/4*, tempo of *120* and key signature of *Cmaj* are desired.
+|     Mode      |       Type         |
+|:-------------:|:------------------:|
+| ```cn_mode``` |   chord name mode  |
+| ```rn_mode``` | roman numeral mode |
 
 ## Command flags
 
 Each command can have optional flags denoting additional parameters:
 
-| flag |           command           |
-|:----:|:---------------------------:|
-|  -a  |       arpeggiate chord      |
-|  -ar | arpeggiate chord in reverse |
-|  -w  |          whole note         |
-|  -h  |     half note (default)     |
-|  -q  |         quarter note        |
-|  -e  |         eighth note         |
-|  -s  |        sixteenth note       |
-|  -t  |          32nd note          |
+|    Flag   |       Command       |
+|:---------:|:-------------------:|
+|  ```-a``` |   chord name mode   |
+| ```-ar``` |  roman numeral mode |
+| ```-.w``` |  dotted whole note  |
+|  ```-w``` |      whole note     |
+|  ```-h``` | half note (default) |
+|  ```-q``` |     quarter note    |
+|  ```-e``` |     eighth note     |
+|  ```-s``` |    sixteenth note   |
+|  ```-t``` |      32nd note      |
 
 ## Building the file
 
@@ -76,7 +79,7 @@ $ python midiwrite.py [markup file] [octave shift](optional)
 
 MidiWrite then builds a MIDI file based on the metadata in the markup file.
 
-Note that MidiWrite is *not* backwards compatible with earlier versions of Python; currently, MidiWrite works only with Python 3.6+ (due to type hinting). However, removal of the type hinting should make MidiWrite compatible with all versions of Python 3.
+Note that MidiWrite is *not* backwards compatible with earlier versions of Python; currently, MidiWrite works only with Python 3.6+ (due to type hinting). However, removal of type hinting should make MidiWrite compatible with all versions of Python 3.
 
 
 # Planned Extensions
@@ -84,11 +87,11 @@ The following functions are planned to be incorporated into the markup language:
 * Single note and scale support
 * Individual note markup shorthands
 
-    |        command        | type of chord |
-    |:---------------------:|:-------------:|
-    |   <ea[d_1 h d_2]gbe>  |   hammer-on   |
-    |   <ea[d_2 h d_1]gbe>  |    pull-off   |
-    | <[eadgbe] s [eadgbe]> | fret notation |
+    |        Command              | Type of Chord |
+    |:---------------------------:|:-------------:|
+    |   ```<ea[d_1 h d_2]gbe>```  |   hammer-on   |
+    |   ```<ea[d_2 h d_1]gbe>```  |    pull-off   |
+    | ```<[eadgbe] s [eadgbe]>``` |     slide     |
 
 # Future plans for MidiWrite
 Future extensions are planned, including:
