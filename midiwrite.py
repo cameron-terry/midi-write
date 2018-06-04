@@ -101,4 +101,4 @@ if __name__ == "__main__":
         else:
             MidiWrite.write_track(output_file, commands, title=title, shift=octave_shift, mode=mode)
     else:
-        MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift, mode=mode, debug=True)
+        MidiWrite.write_track(output_file, commands, title=title, key=key_sig, shift=octave_shift, mode=mode)
